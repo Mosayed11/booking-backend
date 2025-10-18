@@ -1,0 +1,66 @@
+{
+  "info": {
+    "name": "Booking System API",
+    "_postman_id": "b1234567-aaaa-cccc-dddd-eeeeffffffff",
+    "description": "Test API for FastAPI Booking System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Create Property",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Ocean View Resort\",\n  \"description\": \"Luxury hotel with sea view and breakfast included.\",\n  \"location\": \"Alexandria, Egypt\"\n}"
+        },
+        "url": { "raw": "http://localhost:8000/resources/properties", "protocol": "http", "host": ["localhost"], "port": "8000", "path": ["resources", "properties"] }
+      }
+    },
+    {
+      "name": "Create Room",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"property_id\": 1,\n  \"room_number\": \"201\",\n  \"capacity\": 2,\n  \"price_per_night\": 120.0\n}"
+        },
+        "url": { "raw": "http://localhost:8000/resources/rooms", "protocol": "http", "host": ["localhost"], "port": "8000", "path": ["resources", "rooms"] }
+      }
+    },
+    {
+      "name": "Create Booking",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"room_id\": 1,\n  \"user_name\": \"Mohamed Sayed\",\n  \"check_in\": \"2025-10-20\",\n  \"check_out\": \"2025-10-23\"\n}"
+        },
+        "url": { "raw": "http://localhost:8000/bookings", "protocol": "http", "host": ["localhost"], "port": "8000", "path": ["bookings"] }
+      }
+    },
+    {
+      "name": "Get All Properties",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "http://localhost:8000/resources/properties", "protocol": "http", "host": ["localhost"], "port": "8000", "path": ["resources", "properties"] }
+      }
+    },
+    {
+      "name": "Get All Bookings",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "http://localhost:8000/bookings", "protocol": "http", "host": ["localhost"], "port": "8000", "path": ["bookings"] }
+      }
+    }
+  ]
+}
