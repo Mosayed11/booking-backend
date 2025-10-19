@@ -4,6 +4,10 @@ from pydantic import BaseModel
 import hashlib
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from app.db import get_db
+from app.models_fixed import User
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='auth/login')
@@ -11,7 +15,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl='auth/login')
 class UserRegister(BaseModel):
     email: str
     password: str
-    full_name: str = ''
+    full_name: str
 
 class UserLogin(BaseModel):
     email: str
@@ -21,7 +25,6 @@ class UserResponse(BaseModel):
     email: str
     full_name: str
 
-users_db = {}
 SECRET_KEY = 'my-super-secret-key-for-testing-123456'
 
 def hash_password(password: str) -> str:
@@ -37,64 +40,50 @@ def create_access_token(data: dict):
     encoded = jwt.encode(to_encode, SECRET_KEY, algorithm='HS256')
     return encoded
 
-def get_current_user(token: str = Depends(oauth2_scheme)):
+async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
         email = payload.get('sub')
         if email is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail='Invalid token'
-            )
-        return email
+            raise HTTPException(status_code=401, detail='Invalid token')
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=401, detail='User not found')
+        return user
     except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail='Invalid token'
-        )
+        raise HTTPException(status_code=401, detail='Invalid token')
 
 @router.post('/register')
-async def register(user_data: UserRegister):
-    if user_data.email in users_db:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail='Email already registered'
-        )
+async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == user_data.email))
+    existing_user = result.scalar_one_or_none()
+    if existing_user:
+        raise HTTPException(status_code=400, detail='Email already registered')
     
     hashed_password = hash_password(user_data.password)
-    
-    users_db[user_data.email] = {
-        'email': user_data.email,
-        'hashed_password': hashed_password,
-        'full_name': user_data.full_name
-    }
-    
-    return {'message': 'User registered successfully', 'email': user_data.email}
+    new_user = User(
+        email=user_data.email, 
+        password_hash=hashed_password,
+        full_name=user_data.full_name
+    )
+    db.add(new_user)
+    await db.commit()
+    await db.refresh(new_user)
+    return {'message': 'User registered successfully'}
 
 @router.post('/login')
-async def login(user_data: UserLogin):
-    user = users_db.get(user_data.email)
-    
-    if not user or not verify_password(user_data.password, user['hashed_password']):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail='Incorrect email or password'
-        )
-    
-    access_token = create_access_token({'sub': user_data.email})
-    
-    return {
-        'access_token': access_token,
-        'token_type': 'bearer',
-        'message': 'Login successful'
-    }
+async def login(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == user_data.email))
+    user = result.scalar_one_or_none()
+    if not user or not verify_password(user_data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail='Incorrect email or password')
+    access_token = create_access_token({'sub': user.email})
+    return {'access_token': access_token, 'token_type': 'bearer'}
 
 @router.get('/me')
-async def get_current_user_endpoint(current_user: str = Depends(get_current_user)):
-    user = users_db.get(current_user)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail='User not found'
-        )
-    return UserResponse(email=user['email'], full_name=user['full_name'])
+async def get_current_user_endpoint(current_user: User = Depends(get_current_user)):
+    return UserResponse(
+        email=current_user.email, 
+        full_name=current_user.full_name
+    )

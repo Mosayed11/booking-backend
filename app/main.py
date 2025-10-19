@@ -1,21 +1,23 @@
 from fastapi import FastAPI
-from app.routes.auth import router as auth_router
-from app.routes.bookings import router as bookings_router
-from app.routes.payments import router as payments_router
-from app.routes.payments import router as payments_router
-from app.db import Base, engine
-import asyncio
+from app.routes import auth
+from app.db import engine, Base
+import logging
 
-app = FastAPI(title='Booking System Backend')
+logging.basicConfig(level=logging.DEBUG)
 
-app.include_router(auth_router)
-app.include_router(bookings_router)
-app.include_router(payments_router)
+app = FastAPI()
 
-@app.on_event('startup')
-async def on_startup():
-    pass
+@app.on_event("startup")
+async def startup():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
-@app.get('/healthz')
-async def health_check():
-    return {'status': 'ok'}
+app.include_router(auth.router)
+
+@app.get("/")
+async def root():
+    return {"message": "Booking System API"}
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
